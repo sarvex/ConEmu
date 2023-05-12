@@ -75,7 +75,7 @@ class LangData:
             return item
         if type(item) is list:
             return ''.join(item)
-        raise Exception("Unknown type={}".format(type(item)))
+        raise Exception(f"Unknown type={type(item)}")
 
     @staticmethod
     def _set_str(resource, lng_id, item):
@@ -91,34 +91,36 @@ class LangData:
             raise Exception('lng_name is empty', lng_name)
         if lng_id in self.languages:
             if lng_name != self.languages[lng_id]:
-                print('Language name changed, id={}, old_name={}'
-                      ', new_name={}'.format(
-                      lng_id, self.languages[lng_id], lng_name))
+                print(
+                    f'Language name changed, id={lng_id}, old_name={self.languages[lng_id]}, new_name={lng_name}'
+                )
                 self.languages[lng_id] = lng_name
             else:
-                print('Language exists, id={}, name={}'.format(
-                    lng_id, self.languages[lng_id]))
+                print(f'Language exists, id={lng_id}, name={self.languages[lng_id]}')
         else:
-            print('New language, id={}, name={}'.format(
-                  lng_id, lng_name))
+            print(f'New language, id={lng_id}, name={lng_name}')
             self.languages.setdefault(lng_id, lng_name)
 
     def _add_languages(self, new_langs, selected_lang=''):
         for lang in new_langs:
-            if selected_lang == '' or selected_lang == lang['id']:
+            if selected_lang in ['', lang['id']]:
                 self.add_language(lang['id'], lang['name'])
         return
 
     def get_translation_lang_ids(self, tx_langs=[]):
-        if len(tx_langs) != 0 and not 'all' in tx_langs:
-            return list(filter(lambda x: x != 'en' and x != '$$', tx_langs))
-        return list(filter(lambda x: x != 'en' and x != '$$',
-                    map(lambda x: x, self.languages.keys())))
+        if len(tx_langs) != 0 and 'all' not in tx_langs:
+            return list(filter(lambda x: x not in ['en', '$$'], tx_langs))
+        return list(
+            filter(
+                lambda x: x not in ['en', '$$'],
+                map(lambda x: x, self.languages.keys()),
+            )
+        )
 
     def _add_block(self, name, data, selected_lang=''):
         our_block = self.blocks.setdefault(name, OrderedDict())
         for str_id in data:
-            if selected_lang != '' and not str_id in our_block:
+            if selected_lang != '' and str_id not in our_block:
                 raise Exception("Resource is not defined in the base",
                     str_id, data[str_id])
             our_str = our_block.setdefault(str_id, {})
@@ -136,54 +138,55 @@ class LangData:
         return
 
     def load_l10n_file(self, file_name, selected_lang=''):
-        print("Loading l10n file: {}, language: {}".format(
-              file_name, selected_lang if selected_lang != '' else '*'))
+        print(
+            f"Loading l10n file: {file_name}, language: {selected_lang if selected_lang != '' else '*'}"
+        )
         with open(file_name, 'r', encoding='utf-8-sig') as l10n_file:
             l10n = json.load(l10n_file, object_pairs_hook=OrderedDict)
             # Copy language descriptions to our dict
             self._add_languages(l10n['languages'], selected_lang)
-            print('Languages:', [id for id in self.languages])
+            print('Languages:', list(self.languages))
             # Copy string blocks to our dict
             total_count = 0
             for block_id in l10n:
                 # Languages are processed separately
                 if block_id == 'languages':
                     continue
-                print('Block {}'.format(block_id), end='')
+                print(f'Block {block_id}', end='')
                 self._add_block(block_id, l10n[block_id], selected_lang)
                 count = len(self.blocks[block_id])
                 total_count += count
-                print("\tcount={}".format(count))
-            print("Total resources count={}".format(total_count))
+                print(f"\tcount={count}")
+            print(f"Total resources count={total_count}")
         return
 
     def update_lang(self, lng_id, data, verbose):
-        if not lng_id in self.languages:
-            raise Exception("Unknown lang_id={}".format(lng_id))
+        if lng_id not in self.languages:
+            raise Exception(f"Unknown lang_id={lng_id}")
         for block_id in data:
-            if not block_id in self.blocks:
+            if block_id not in self.blocks:
                 raise Exception("Block is not defined in the base", block_id)
             our_block = self.blocks[block_id]
             new_block = data[block_id]
             for str_id in new_block:
-                if not str_id in our_block:
-                    print("warning: str_id={} is not defined "
-                          "in the base".format(str_id))
+                if str_id not in our_block:
+                    print(f"warning: str_id={str_id} is not defined in the base")
                     continue
                 if new_block[str_id].strip() == '':
                     continue
                 resource = our_block[str_id]
                 new_str = new_block[str_id]
-                if not lng_id in resource:
+                if lng_id not in resource:
                     if verbose:
-                        print('  new string[{}]: {}'.format(lng_id, new_str))
+                        print(f'  new string[{lng_id}]: {new_str}')
                     resource.setdefault(
                         lng_id,
                         {'item': new_str, 'deprecated': False})
                 elif resource[lng_id]['item'] != new_str:
                     if verbose:
-                        print('  changed string[{}]: "{}" -> "{}"'.format(
-                            lng_id, resource[lng_id]['item'], new_str))
+                        print(
+                            f"""  changed string[{lng_id}]: "{resource[lng_id]['item']}" -> "{new_str}\""""
+                        )
                     resource[lng_id]['item'] = new_str
                     resource[lng_id]['deprecated'] = False
         return
@@ -204,24 +207,22 @@ class LangData:
                     ' "name": "' + self.escape(self.languages[lng_id]) + '" }' +
                     endl)
 
-            file.write(indent + '"languages": [' + endl)
+            file.write(f'{indent}"languages": [{endl}')
             is_first = True
 
             for lng_id in self.languages:
                 if is_first:
                     is_first = False
                 else:
-                    file.write(indent + '  ,' + endl)
-                write_language(
-                    file, lng_id, self.languages[lng_id],
-                    indent + '  ')
-            file.write(indent + ']' + endl)
+                    file.write(f'{indent}  ,{endl}')
+                write_language(file, lng_id, self.languages[lng_id], f'{indent}  ')
+            file.write(f'{indent}]{endl}')
             return
 
         def write_blocks(file, indent):
             def make_string(item, indent):
-                if not '\n' in item:
-                    return '"' + self.escape(item) + '"'
+                if '\n' not in item:
+                    return f'"{self.escape(item)}"'
                 data = '['
                 is_first = True
                 for line in item.splitlines(keepends=True):
@@ -232,7 +233,7 @@ class LangData:
                     data += ' "'
                     data += self.escape(line)
                     data += '"'
-                data = data + ' ]'
+                data = f'{data} ]'
                 return data
 
             def pseudo(rsrc):
@@ -241,12 +242,11 @@ class LangData:
             def write_resource(file, lng_id, resource, indent):
                 if lng_id == 'id':
                     return
-                id = lng_id if not resource['deprecated'] else '_' + lng_id
+                id = lng_id if not resource['deprecated'] else f'_{lng_id}'
                 lng_text = pseudo(resource['item']) if lng_id == '$$' else resource['item']
                 file.write(
-                    indent + '"' + self.escape(id) + '": ' +
-                    make_string(lng_text, indent) +
-                    ',' + endl)
+                    f'{indent}"{self.escape(id)}": {make_string(lng_text, indent)},{endl}'
+                )
                 return
 
             # Write language block, e.g. "cmnhints"
@@ -256,29 +256,23 @@ class LangData:
                     if is_first:
                         is_first = False
                     else:
-                        file.write(indent + ',' + endl)
-                    file.write(
-                        indent + '"' + self.escape(str_id) + '": {' +
-                        endl)
+                        file.write(f'{indent},{endl}')
+                    file.write((f'{indent}"{self.escape(str_id)}' + '": {' + endl))
                     rsrc = block[str_id]
                     for lng_id in self.languages:
                         if lng_id == '$$':
-                            write_resource(
-                                file, lng_id, rsrc['en'], indent + '  ')
+                            write_resource(file, lng_id, rsrc['en'], f'{indent}  ')
                             continue
                         if lng_id not in rsrc:
                             continue
-                        write_resource(
-                            file, lng_id, rsrc[lng_id], indent + '  ')
-                    file.write(
-                        indent + '  "id": ' + str(rsrc['id']) + ' }' +
-                        endl)
+                        write_resource(file, lng_id, rsrc[lng_id], f'{indent}  ')
+                    file.write((f'{indent}  "id": ' + str(rsrc['id']) + ' }' + endl))
                 return
 
             for block_id in self.blocks:
-                file.write(indent + ',' + endl)
-                file.write(indent + '"' + self.escape(block_id) + '": {' + endl)
-                write_block(file, self.blocks[block_id], indent + '  ')
+                file.write(f'{indent},{endl}')
+                file.write(f'{indent}"{self.escape(block_id)}' + '": {' + endl)
+                write_block(file, self.blocks[block_id], f'{indent}  ')
                 file.write(indent + '}' + endl)
                 file.write('')
             return
@@ -298,11 +292,11 @@ class LangData:
     # end of write_l10n(self, file):
 
     def write_yaml(self, folder):
-        print('Writing yamls to {}'.format(folder))
+        print(f'Writing yamls to {folder}')
         # for lng_id in self.languages:
         for lng_id in ['en']:
-            file_path = os.path.join(folder, 'ConEmu_{}.yaml'.format(lng_id))
-            print('  {}'.format(file_path))
+            file_path = os.path.join(folder, f'ConEmu_{lng_id}.yaml')
+            print(f'  {file_path}')
             with open(file_path, 'w', encoding='utf-8-sig') as file:
                 self.write_yaml_file(file, lng_id)
         return
@@ -316,14 +310,23 @@ class LangData:
     def write_yaml_file(self, file, lng_id):
         endl = '\n'
         for block_id in self.blocks:
-            file.write(block_id + ':' + endl)
+            file.write(f'{block_id}:{endl}')
             block = self.blocks[block_id]
             for str_id in sorted(block, key=lambda s: s.lower()):
                 resource = block[str_id]
                 if lng_id in resource:
-                    file.write('  ' + str_id + ': "' +
-                               self.escape(resource[lng_id]['item']) +
-                               '"' + endl)
+                    file.write(
+                        (
+                            (
+                                (
+                                    f'  {str_id}: "'
+                                    + self.escape(resource[lng_id]['item'])
+                                )
+                                + '"'
+                            )
+                            + endl
+                        )
+                    )
         return
 
 
@@ -336,43 +339,42 @@ class Transifex:
         return
 
     def pull(self, lang_id):
-        print('Pulling language {} from Transifex'.format(lang_id))
+        print(f'Pulling language {lang_id} from Transifex')
         result = requests.get(
-            '{}/translation/{}/?{}'.format(
-                self.base_url, lang_id, self.file_format),
-            auth=HTTPBasicAuth('api', self.tx_token))
-        print(' TX result: %s' % result.status_code)
+            f'{self.base_url}/translation/{lang_id}/?{self.file_format}',
+            auth=HTTPBasicAuth('api', self.tx_token),
+        )
+        print(f' TX result: {result.status_code}')
         if result.status_code == 200:
             # print(result.encoding)
             result.encoding = 'utf-8'
-            data = yaml.load(result.text, Loader=yaml.SafeLoader)
-            # pp = pprint.PrettyPrinter(indent=2)
-            # pp.pprint(data)
-            return data
+            return yaml.load(result.text, Loader=yaml.SafeLoader)
         raise Exception("No Transifex data", result)
 
     def push_source_language(self, json_data):
         result = requests.put(
-            '{}/content/{}/'.format(self.base_url, lang_id),
+            f'{self.base_url}/content/{lang_id}/',
             auth=HTTPBasicAuth('api', self.tx_token),
-            json=json_data)
-        print(' TX result: %s' % result.status_code)
+            json=json_data,
+        )
+        print(f' TX result: {result.status_code}')
         if result.status_code == 200:
             return
         raise Exception("No Transifex data", result)
 
     def push_translation_data(self, lang_id, yaml_data):
-        print('Pushing language {} to Transifex'.format(lang_id))
+        print(f'Pushing language {lang_id} to Transifex')
         result = requests.put(
-            '{}/translation/{}/'.format(self.base_url, lang_id),
+            f'{self.base_url}/translation/{lang_id}/',
             auth=HTTPBasicAuth('api', self.tx_token),
-            files={'file': ('ConEmu_%s.yaml' % lang_id, yaml_data)})
-        print(' TX result: %s' % result.status_code)
+            files={'file': (f'ConEmu_{lang_id}.yaml', yaml_data)},
+        )
+        print(f' TX result: {result.status_code}')
         if result.status_code == 200:
             import_result = result.json()
-            print('  added:   %s' % import_result['strings_added'])
-            print('  updated: %s' % import_result['strings_updated'])
-            print('  deleted: %s' % import_result['strings_delete'])
+            print(f"  added:   {import_result['strings_added']}")
+            print(f"  updated: {import_result['strings_updated']}")
+            print(f"  deleted: {import_result['strings_delete']}")
             return
         raise Exception("No Transifex data", result, result.text)
 
@@ -400,14 +402,14 @@ def main(args):
             tx.push_translation_data(lng_id, l10n.create_yaml_string(lng_id))
     if args.write_l10n:
         with open(args.l10n, 'w', encoding='utf-8-sig') as l10n_file:
-            print('Writing l10n to {}'.format(args.l10n))
+            print(f'Writing l10n to {args.l10n}')
             l10n.write_l10n(l10n_file)
     if args.write_yaml:
         l10n.write_yaml(args.write_yaml)
     if args.write_pseudo:
         l10n.add_language('$$', 'Pseudo')
         with open(args.write_pseudo, 'w', encoding='utf-8-sig') as l10n_file:
-            print('Writing l10n with pseudo translation to {}'.format(args.write_pseudo))
+            print(f'Writing l10n with pseudo translation to {args.write_pseudo}')
             l10n.write_l10n(l10n_file)
     return
 
